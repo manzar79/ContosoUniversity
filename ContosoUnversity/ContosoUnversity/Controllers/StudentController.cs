@@ -6,8 +6,11 @@ using System.Linq;
 using System.Net;
 using System.Web;
 using System.Web.Mvc;
+using PagedList;
 using ContosoUniversity.DAL;
 using ContosoUniversity.Models;
+using System.Data.Entity.Infrastructure; 
+
 
 namespace ContosoUniversity.Controllers
 {
@@ -16,16 +19,33 @@ namespace ContosoUniversity.Controllers
         private SchoolContext db = new SchoolContext();
 
         // GET: Student
-       public ActionResult Index(string sortOrder, string searchString) 
+       public ActionResult Index(string sortOrder, string currentFilter, string searchString, int? page) 
         { 
  
             ViewBag.NameSortParm = String.IsNullOrEmpty(sortOrder) ? "name_desc" : ""; 
             ViewBag.DateSortParm = sortOrder == "Date" ? "date_desc" : "Date"; 
+            if (searchString != null) 
+            {
+                page = 1; 
+             } 
+            else 
+            { 
+                searchString = currentFilter; 
+            } 
+ 
+            ViewBag.CurrentFilter = searchString; 
             var students = from s in db.Students
                            select s;
            if (!String.IsNullOrEmpty(searchString))
            {
-               students = students.Where(s => s.LastName.ToUpper().Contains(searchString.ToUpper)) || s.FirstMidName.ToUpper().Conatains(searchString.ToUpper())); }
+               if (!String.IsNullOrEmpty(searchString))
+               {
+                   students = students.Where(s =>
+                  s.LastName.ToUpper().Contains(searchString.ToUpper())
+                               ||
+                  s.FirstMidName.ToUpper().Contains(searchString.ToUpper()));
+               } 
+           }
             switch (sortOrder) 
             { 
                 case "name_desc": 
@@ -40,8 +60,11 @@ namespace ContosoUniversity.Controllers
                 default:   
                 students = students.OrderBy(s => s.LastName); 
                 break; 
-            } 
-            return View(students.ToList()); 
+            }
+
+            int pageSize = 3;
+            int pageNumber = (page ?? 1);
+            return View(students.ToPagedList(pageNumber, pageSize)); 
         } 
 
         // GET: Student/Details/5
@@ -81,12 +104,13 @@ namespace ContosoUniversity.Controllers
                     return RedirectToAction("Index"); 
                 } 
             } 
-            catch (DataException /* dex */) 
-            {
-                //Log the error (uncomment dex variable name and add a line here to write a log. 
+         
+            catch (RetryLimitExceededException /* dex */) 
+            { 
+                 //Log the error (uncomment dex variable name and add a line here to write a log. 
                 ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator."); 
-            } 
-            return View(student); 
+            }
+            return View(student);
         } 
 
         // GET: Student/Edit/5
@@ -119,8 +143,8 @@ namespace ContosoUniversity.Controllers
                     db.SaveChanges(); 
                     return RedirectToAction("Index"); 
                 } 
-            } 
-            catch (DataException /* dex */) 
+            }
+        catch (RetryLimitExceededException /* dex */) 
             { 
                 //Log the error (uncomment dex variable name and add a line here to write a log. 
                 ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists see your system administrator."); 
@@ -158,8 +182,8 @@ namespace ContosoUniversity.Controllers
  
                 db.Students.Remove(student); 
                 db.SaveChanges(); 
-            } 
-            catch (DataException/* dex */) 
+            }
+            catch (RetryLimitExceededException/* dex */) 
             { 
                 //Log the error (uncomment dex variable name and add a line here to write a log. 
                 return RedirectToAction("Delete", new { id = id, 
